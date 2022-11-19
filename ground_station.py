@@ -5,21 +5,16 @@ from datetime import datetime
 import pytz
 from creds import elastic_auth
 
-'''
-1. connect to elasticsearch
-2. create index if it does not exist
-3. every 3 minutes, 
-    fetch packet api for satellite
-    send new packets to elasticsearch
-'''
-
+# use random satellite for testing purposes
 satellite_name = 'SATLLA-2B' # 'Norbi'
 index_name = 'satlla-2b'
 
+# convert unix time to human-readable time
 def convert_timestamp(unix_time_millis):
     return datetime.utcfromtimestamp(int(unix_time_millis)/1000).astimezone(pytz.timezone('America/New_York')).strftime("%Y-%m-%d %H:%M:%S")
 
-es = Elasticsearch('https://localhost:9200', basic_auth=elastic_auth, ca_certs='http_ca.crt')
+es = Elasticsearch('https://localhost:9200')
+# es = Elasticsearch('https://localhost:9200', basic_auth=elastic_auth, ca_certs='http_ca.crt')
 
 # timestamp of last processed packet
 last_processed_time = 0
