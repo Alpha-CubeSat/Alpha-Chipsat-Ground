@@ -1,61 +1,33 @@
 from elasticsearch import Elasticsearch
 import requests
 from time import sleep
-from datetime import datetime
-import pytz
+from datetime import datetime, timezone
 from creds import elastic_auth
 
 # use random satellite for testing purposes
-satellite_name = 'SATLLA-2B' # 'Norbi'
-index_name = 'satlla-2b'
+satellite_name = 'ChipSats'
+index_name = 'chipsats'
 
-# convert unix time to human-readable time
-def convert_timestamp(unix_time_millis):
-    return datetime.utcfromtimestamp(int(unix_time_millis)/1000).astimezone(pytz.timezone('America/New_York')).strftime("%Y-%m-%d %H:%M:%S")
+def map_range(x, out_min, out_max, in_min=0, in_max=255):
+    return out_min + (((out_max - out_min) / (in_max - in_min)) * (x - in_min))
 
-es = Elasticsearch('https://localhost:9200')
-# es = Elasticsearch('https://localhost:9200', basic_auth=elastic_auth, ca_certs='http_ca.crt')
+es = Elasticsearch('https://localhost:9200', basic_auth=elastic_auth, verify_certs=False)
 
 # timestamp of last processed packet
-last_processed_time = 0
+last_processed_time = datetime.fromtimestamp(1729984051016/1000, timezone.utc) # saturday
 
-# if index not found, create index
-# else find the time of the last processed packet in elasticsearch
-if index_name not in es.indices.get_mapping().keys():
-    mappings = {
-        'properties': {
-            'serverTime': {'type': 'date'},
-            'satelliteName': {'type': 'text'},
-            'batteryVolts': {'type': 'double'},
-            'batteryCurrent': {'type': 'double'},
-            'power': {'type': 'double'},
-            'temperature': {'type': 'double'},
-            'position': {'type': 'geo_point'},
-            'altitude': {'type': 'double'}
-        }
-    }
-
-    es.indices.create(index=index_name, mappings=mappings)
-
-    print(f"Created index '{index_name}'")
-else:
-    print(f"Found index '{index_name}'")
-
-    response = es.search(index=index_name, size=1, sort=[
-        {
-            'serverTime': {
-                'order': 'desc'
-            }
-        }
-    ])
-    hits = response['hits']['hits']
+# find the time of the last processed packet in elasticsearch
+if index_name in es.indices.get_mapping().keys():
+    response = es.search(index=index_name, size=1, sort=[{'timestamp': {'order': 'desc'}}])
 
     # checks to make sure index not empty
-    if len(hits) > 0:
-        last_processed_time = response['hits']['hits'][0]['_source']['serverTime']
-        print(f'Last packet time was: {last_processed_time} ({convert_timestamp(last_processed_time)})')
+    if len(response['hits']['hits']) > 0:
+        last_processed_time = datetime.fromisoformat(response['hits']['hits'][0]['_source']['timestamp'])
+        print("Last packet time was: " + str(last_processed_time))
     else:
-        print(f"Index '{index_name}' was empty")
+        print("Index is empty")
+else:
+    print("Index not found")
 
 # every 3 minutes, fetch api
 while True:
@@ -64,26 +36,42 @@ while True:
     # iterates from most recent to oldest
     new_packets = 0
     for packet in api:
-
         # send packet to elasticsearch if it hasn't been processed yet
-        if packet['serverTime'] > last_processed_time:
+        payload = packet['parsed']['payload']
+        packet_time = datetime.fromtimestamp(packet['serverTime']/1000, timezone.utc)
+        if packet_time > last_processed_time:
             data = {
-                'serverTime': packet['serverTime'],
-                'satelliteName': packet['satellite'],
-                'batteryVolts': packet['parsed']['payload']['batteryVolts'],
-                'batteryCurrent': packet['parsed']['payload']['batteryCurrent'],
-                'power': packet['parsed']['payload']['tinygsTxPower'],
-                'temperature': packet['parsed']['payload']['tinygsTemp'],
-                'position': f"{packet['satPos']['lat']},{packet['satPos']['lng']}",
-                'altitude': packet['satPos']['alt']
+                "timestamp": packet_time.isoformat(),
+                "chipsatId": payload['chipsatId'],
+                "location": {
+                    "lat": payload['latitude'],
+                    "lon": payload['longitude'],
+                },
+                "altitude": payload['altitude'],
+                "gyroX": map_range(payload['gyroX'], -245, 245),
+                "gyroY": map_range(payload['gyroY'], -245, 245),
+                "gyroZ": map_range(payload['gyroZ'], -245, 245),
+                "accelX": map_range(payload['accelX'], -20, 20),
+                "accelY": map_range(payload['accelY'], -20, 20),
+                "accelZ": map_range(payload['accelZ'], -20, 20),
+                "magX": map_range(payload['magX'], -100, 100),
+                "magY": map_range(payload['magY'], -100, 100),
+                "magZ": map_range(payload['magZ'], -100, 100),
+                "temperature": payload['temperature'],
+                # "validUplinks": 0,
+                # "invalidUplinks": 11,
+                # "gpsValid": false,
+                # "imuValid": true,
+                # "bootFlag": true,
+                # "lFlag": false,
             }
-            es.index(index=index_name, document=data)
+            es.index(index=index_name, body=data)
             new_packets += 1
 
     print(f'{new_packets} new packets were received')
 
     # update last processed packet time (first packet is the latest one)
-    last_processed_time = api[0]['serverTime']
-    print(f'Last packet time: {last_processed_time} ({convert_timestamp(last_processed_time)})')
+    last_processed_time = datetime.fromtimestamp(api[0]['serverTime']/1000, timezone.utc)
+    print("Last packet time was: " + str(last_processed_time))
 
     sleep(180)
