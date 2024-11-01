@@ -2,19 +2,21 @@ from elasticsearch import Elasticsearch
 import requests
 from time import sleep
 from datetime import datetime, timezone
+import pytz
 from creds import elastic_auth
-
-# use random satellite for testing purposes
-satellite_name = 'ChipSats'
-index_name = 'chipsats'
 
 def map_range(x, out_min, out_max, in_min=0, in_max=255):
     return out_min + (((out_max - out_min) / (in_max - in_min)) * (x - in_min))
 
+satellite_name = 'ChipSats'
+# satellite_name = 'ChipSat_A'
+index_name = 'chipsats'
+
 es = Elasticsearch('https://localhost:9200', basic_auth=elastic_auth, verify_certs=False)
 
 # timestamp of last processed packet
-last_processed_time = datetime.fromtimestamp(1729984051016/1000, timezone.utc) # saturday
+est = pytz.timezone('America/New_York')
+last_processed_time = datetime(2024, 10, 27, 0, 0, tzinfo=est)
 
 # find the time of the last processed packet in elasticsearch
 if index_name in es.indices.get_mapping().keys():
@@ -23,13 +25,13 @@ if index_name in es.indices.get_mapping().keys():
     # checks to make sure index not empty
     if len(response['hits']['hits']) > 0:
         last_processed_time = datetime.fromisoformat(response['hits']['hits'][0]['_source']['timestamp'])
-        print("Last packet time was: " + str(last_processed_time))
+        print("Last packet time was: " + str(last_processed_time.astimezone(est)))
     else:
         print("Index is empty")
 else:
     print("Index not found")
 
-# every 3 minutes, fetch api
+# fetch API every 30 seconds
 while True:
     api = requests.get('https://api.tinygs.com/v2/packets?satellite=' + satellite_name).json()['packets']
 
@@ -72,6 +74,6 @@ while True:
 
     # update last processed packet time (first packet is the latest one)
     last_processed_time = datetime.fromtimestamp(api[0]['serverTime']/1000, timezone.utc)
-    print("Last packet time was: " + str(last_processed_time))
+    print("Last packet time was: " + str(last_processed_time.astimezone(est)))
 
-    sleep(180)
+    sleep(30)
