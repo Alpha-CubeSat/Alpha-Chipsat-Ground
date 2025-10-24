@@ -5,14 +5,15 @@ from datetime import datetime, timezone
 import pytz
 from creds import elastic_auth
 
-def map_range(x, out_min, out_max, in_min=0, in_max=255):
-    return out_min + (((out_max - out_min) / (in_max - in_min)) * (x - in_min))
+# Maps a value from 0-255 to a specified range
+# def unmap_range(x, out_min, out_max):
+#     return out_min + (((out_max - out_min) / 255) * x)
 
 satellite_name = 'ChipSats'
 # satellite_name = 'ChipSat_A'
 index_name = 'chipsats'
 
-es = Elasticsearch('https://localhost:9200', basic_auth=elastic_auth, verify_certs=False)
+es = Elasticsearch(["https://alphags.jonathanjma.com:443/elasticsearch"], basic_auth=elastic_auth)
 
 # timestamp of last processed packet
 est = pytz.timezone('America/New_York')
@@ -50,22 +51,23 @@ while True:
                     "lon": payload['longitude'],
                 },
                 "altitude": payload['altitude'],
-                "gyroX": map_range(payload['gyroX'], -245, 245),
-                "gyroY": map_range(payload['gyroY'], -245, 245),
-                "gyroZ": map_range(payload['gyroZ'], -245, 245),
-                "accelX": map_range(payload['accelX'], -20, 20),
-                "accelY": map_range(payload['accelY'], -20, 20),
-                "accelZ": map_range(payload['accelZ'], -20, 20),
-                "magX": map_range(payload['magX'], -100, 100),
-                "magY": map_range(payload['magY'], -100, 100),
-                "magZ": map_range(payload['magZ'], -100, 100),
+                "gyroX": payload['gyroX'],
+                "gyroY": payload['gyroY'],
+                "gyroZ": payload['gyroZ'],
+                "accelX": payload['accelX'],
+                "accelY": payload['accelY'],
+                "accelZ": payload['accelZ'],
+                "magX": payload['magX'],
+                "magY": payload['magY'],
+                "magZ": payload['magZ'],
                 "temperature": payload['temperature'],
-                # "validUplinks": 0,
-                # "invalidUplinks": 11,
-                # "gpsValid": false,
-                # "imuValid": true,
-                # "bootFlag": true,
-                # "lFlag": false,
+                "gpsPositionValid": payload['gpsPositionValid'],
+                "gpsAltitudeValid": payload['gpsAltitudeValid'],
+                "imuValid": payload['imuValid'],
+                "gpsOn": payload['gpsOn'],
+                "listenFlag": payload['lFlag'],
+                "validUplinks": payload['validUplinks'],
+                "invalidUplinks": payload['invalidUplinks'],
             }
             es.index(index=index_name, body=data)
             new_packets += 1
