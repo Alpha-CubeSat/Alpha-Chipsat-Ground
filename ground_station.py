@@ -34,48 +34,54 @@ else:
 
 # fetch API every 30 seconds
 while True:
-    api = requests.get('https://api.tinygs.com/v2/packets?satellite=' + satellite_name).json()['packets']
+    api = requests.get('https://api.tinygs.com/v2/packets?satellite=' + satellite_name).json()
+    
+    # Packets key might not exists if there are no recent packets
+    if 'packets' in api:
+        api = api['packets']
 
-    # iterates from most recent to oldest
-    new_packets = 0
-    for packet in api:
-        # send packet to elasticsearch if it hasn't been processed yet
-        payload = packet['parsed']['payload']
-        packet_time = datetime.fromtimestamp(packet['serverTime']/1000, timezone.utc)
-        if packet_time > last_processed_time:
-            data = {
-                "timestamp": packet_time.isoformat(),
-                "chipsatId": payload['chipsatId'],
-                "location": {
-                    "lat": payload['latitude'],
-                    "lon": payload['longitude'],
-                },
-                "altitude": payload['altitude'],
-                "gyroX": payload['gyroX'],
-                "gyroY": payload['gyroY'],
-                "gyroZ": payload['gyroZ'],
-                "accelX": payload['accelX'],
-                "accelY": payload['accelY'],
-                "accelZ": payload['accelZ'],
-                "magX": payload['magX'],
-                "magY": payload['magY'],
-                "magZ": payload['magZ'],
-                "temperature": payload['temperature'],
-                "gpsPositionValid": payload['gpsPositionValid'],
-                "gpsAltitudeValid": payload['gpsAltitudeValid'],
-                "imuValid": payload['imuValid'],
-                "gpsOn": payload['gpsOn'],
-                "listenFlag": payload['lFlag'],
-                "validUplinks": payload['validUplinks'],
-                "invalidUplinks": payload['invalidUplinks'],
-            }
-            es.index(index=index_name, body=data)
-            new_packets += 1
+        # iterates from most recent to oldest
+        new_packets = 0
+        for packet in api:
+            # send packet to elasticsearch if it hasn't been processed yet
+            payload = packet['parsed']['payload']
+            packet_time = datetime.fromtimestamp(packet['serverTime']/1000, timezone.utc)
+            if packet_time > last_processed_time:
+                data = {
+                    "timestamp": packet_time.isoformat(),
+                    "chipsatId": payload['chipsatId'],
+                    "location": {
+                        "lat": payload['latitude'],
+                        "lon": payload['longitude'],
+                    },
+                    "altitude": payload['altitude'],
+                    "gyroX": payload['gyroX'],
+                    "gyroY": payload['gyroY'],
+                    "gyroZ": payload['gyroZ'],
+                    "accelX": payload['accelX'],
+                    "accelY": payload['accelY'],
+                    "accelZ": payload['accelZ'],
+                    "magX": payload['magX'],
+                    "magY": payload['magY'],
+                    "magZ": payload['magZ'],
+                    "temperature": payload['temperature'],
+                    "gpsPositionValid": payload['gpsPositionValid'],
+                    "gpsAltitudeValid": payload['gpsAltitudeValid'],
+                    "imuValid": payload['imuValid'],
+                    "gpsOn": payload['gpsOn'],
+                    "listenFlag": payload['lFlag'],
+                    "validUplinks": payload['validUplinks'],
+                    "invalidUplinks": payload['invalidUplinks'],
+                }
+                # es.index(index=index_name, body=data)
+                new_packets += 1
 
-    print(f'{new_packets} new packets were received')
+        print(f'{new_packets} new packets were received')
 
-    # update last processed packet time (first packet is the latest one)
-    last_processed_time = datetime.fromtimestamp(api[0]['serverTime']/1000, timezone.utc)
-    print("Last packet time was: " + str(last_processed_time.astimezone(est)))
+        # update last processed packet time (first packet is the latest one)
+        last_processed_time = datetime.fromtimestamp(api[0]['serverTime']/1000, timezone.utc)
+        print("Last packet time was: " + str(last_processed_time.astimezone(est)))
+    else:
+        print("No packets found in API response")
 
     sleep(30)
