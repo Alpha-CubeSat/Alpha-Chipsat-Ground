@@ -53,7 +53,7 @@ if index_name in es.indices.get_mapping().keys():
     # checks to make sure index not empty
     if len(response['hits']['hits']) > 0:
         last_processed_time = datetime.fromisoformat(response['hits']['hits'][0]['_source']['timestamp'])
-        print("Last packet time was: " + str(last_processed_time.astimezone(est)))
+        print("Elasticsearch last packet time was: " + str(last_processed_time.astimezone(est)))
     else:
         print("Index is empty")
 else:
@@ -93,9 +93,9 @@ while True:
                     "accelX": payload['accelXG'],
                     "accelY": payload['accelYG'],
                     "accelZ": payload['accelZG'],
-                    "magX": payload['magXUt'],
-                    "magY": payload['magYUt'],
-                    "magZ": payload['magZUt'],
+                    "magX": payload['magXUT'],
+                    "magY": payload['magYUT'],
+                    "magZ": payload['magZUT'],
                     "temperature": payload['temperatureC'],
                     "gpsPositionValid": payload['gpsPositionValid'],
                     "gpsAltitudeValid": payload['gpsAltitudeValid'],
