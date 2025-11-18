@@ -1,6 +1,6 @@
 meta:
   id: chipsat
-  title: Alpha ChipSat Downlink Packet (last updated 10/24)
+  title: Alpha ChipSat Downlink Packet (last updated 11/11)
   endian: le
 doc: https://github.com/Alpha-CubeSat/oop-chipsat-code/wiki/2.-Telemetry
 seq:
@@ -47,29 +47,29 @@ seq:
   - id: l_flag
     type: b1
 instances:
-  latitude:
+  latitude_deg:
     value: lat_raw / 100.
-  longitude:
+  longitude_deg:
     value: long_raw / 100.
-  altitude:
+  altitude_m:
     value: alt_raw * 10
-  gyro_x:
+  gyro_x_dps:
     value: -245 + (490 / 255.0) * gyro_x_raw
-  gyro_y:
+  gyro_y_dps:
     value: -245 + (490 / 255.0) * gyro_y_raw
-  gyro_z:
+  gyro_z_dps:
     value: -245 + (490 / 255.0) * gyro_z_raw
-  accel_x:
+  accel_x_g:
     value: -20 + (40 / 255.0) * accel_x_raw
-  accel_y:
+  accel_y_g:
     value: -20 + (40 / 255.0) * accel_y_raw
-  accel_z:
+  accel_z_g:
     value: -20 + (40 / 255.0) * accel_z_raw
-  mag_x:
+  mag_x_ut:
     value: -100 + (200 / 255.0) * mag_x_raw
-  mag_y:
+  mag_y_ut:
     value: -100 + (200 / 255.0) * mag_y_raw
-  mag_z:
+  mag_z_ut:
     value: -100 + (200 / 255.0) * mag_z_raw
-  temperature:
+  temperature_c:
     value: -40 + (165 / 255.0) * temperature_raw

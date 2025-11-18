@@ -1,13 +1,40 @@
-from elasticsearch import Elasticsearch
-import requests
-from time import sleep
+import base64
 from datetime import datetime, timezone
+from time import sleep
+
 import pytz
+import requests
+from elasticsearch import Elasticsearch
+
 from creds import elastic_auth
 
 # Maps a value from 0-255 to a specified range
 # def unmap_range(x, out_min, out_max):
 #     return out_min + (((out_max - out_min) / 255) * x)
+
+# Maps each ChipSat ID to its gyro bias in each axis (the reported gyro value when the chipsat was stationary)
+gyro_bias_map = {
+    0: {
+        'x': -25.94,
+        'y': 10.57,
+        'z': -14.41,
+    },
+    1: {
+        'x': -10.57,
+        'y': 0.96,
+        'z': -4.80,
+    },
+    2: {
+        'x': -0.96,
+        'y': 2.88,
+        'z': -10.57,
+    },
+    3: {
+        'x': -10.57,
+        'y': -8.65,
+        'z': -10.57,
+    },
+}
 
 satellite_name = 'ChipSats'
 # satellite_name = 'ChipSat_A'
@@ -32,11 +59,13 @@ if index_name in es.indices.get_mapping().keys():
 else:
     print("Index not found")
 
-# fetch API every 30 seconds
+# fetch API loop
 while True:
-    api = requests.get('https://api.tinygs.com/v2/packets?satellite=' + satellite_name).json()
+    # need user agent so we appear as a browser
+    headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36 Edg/141.0.0.0"}
+    api = requests.get("https://api.tinygs.com/v2/packets?satellite=" + satellite_name, headers=headers).json()
     
-    # Packets key might not exists if there are no recent packets
+    # Packets key might not exist if there are no recent packets
     if 'packets' in api:
         api = api['packets']
 
@@ -47,24 +76,27 @@ while True:
             payload = packet['parsed']['payload']
             packet_time = datetime.fromtimestamp(packet['serverTime']/1000, timezone.utc)
             if packet_time > last_processed_time:
+                gyro_bias = gyro_bias_map[payload['chipsatId']]
                 data = {
                     "timestamp": packet_time.isoformat(),
+                    "tinygsPacketId": packet['id'],
+                    "data": base64.b64decode(packet['raw']).hex(),
                     "chipsatId": payload['chipsatId'],
                     "location": {
-                        "lat": payload['latitude'],
-                        "lon": payload['longitude'],
+                        "lat": payload['latitudeDeg'],
+                        "lon": payload['longitudeDeg'],
                     },
-                    "altitude": payload['altitude'],
-                    "gyroX": payload['gyroX'],
-                    "gyroY": payload['gyroY'],
-                    "gyroZ": payload['gyroZ'],
-                    "accelX": payload['accelX'],
-                    "accelY": payload['accelY'],
-                    "accelZ": payload['accelZ'],
-                    "magX": payload['magX'],
-                    "magY": payload['magY'],
-                    "magZ": payload['magZ'],
-                    "temperature": payload['temperature'],
+                    "altitude": payload['altitudeM'],
+                    "gyroX": payload['gyroXDps'] + gyro_bias['x'],
+                    "gyroY": payload['gyroYDps'] + gyro_bias['y'],
+                    "gyroZ": payload['gyroZDps'] + gyro_bias['z'],
+                    "accelX": payload['accelXG'],
+                    "accelY": payload['accelYG'],
+                    "accelZ": payload['accelZG'],
+                    "magX": payload['magXUt'],
+                    "magY": payload['magYUt'],
+                    "magZ": payload['magZUt'],
+                    "temperature": payload['temperatureC'],
                     "gpsPositionValid": payload['gpsPositionValid'],
                     "gpsAltitudeValid": payload['gpsAltitudeValid'],
                     "imuValid": payload['imuValid'],
@@ -73,7 +105,7 @@ while True:
                     "validUplinks": payload['validUplinks'],
                     "invalidUplinks": payload['invalidUplinks'],
                 }
-                # es.index(index=index_name, body=data)
+                es.index(index=index_name, body=data)
                 new_packets += 1
 
         print(f'{new_packets} new packets were received')

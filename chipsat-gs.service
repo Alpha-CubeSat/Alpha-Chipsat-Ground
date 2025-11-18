@@ -1,0 +1,12 @@
+[Unit]
+Description=ChipSat Ground Station Script
+
+[Install]
+WantedBy=multi-user.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /home/alpha-gs/Alpha-Chipsat-Ground/ground_station.py
+WorkingDirectory=/home/alpha-gs/Alpha-Chipsat-Ground
+Restart=always
+Environment=PYTHONUNBUFFERED=1
